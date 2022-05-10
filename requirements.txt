@@ -1,0 +1,6 @@
+django
+pandas
+imgkit
+requests
+pillow
+pymongo
