@@ -1,15 +1,9 @@
-FROM python:3
+FROM ubuntu:latest
 
-RUN apt-get update && apt-get install -y vim
+WORKDIR /opt
+COPY ./node-v16.15.1-linux-x64 ./node-v16.15.1-linux-x64
 
-COPY wkhtmltopdf /usr/local/bin/
-COPY wkhtmltoimage /usr/local/bin/
-
-WORKDIR /src
-COPY requirements.txt .
-RUN pip install --trusted-host pypi.python.org -r requirements.txt
-COPY ./src/ .
-
-EXPOSE 8000
+ENV NODEJS_HOME /opt/node-v16.15.1-linux-x64/bin
+ENV PATH $NODEJS_HOME:$PATH
 
 CMD tail -f /dev/null
