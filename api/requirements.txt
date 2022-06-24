@@ -1,0 +1,7 @@
+django
+djangorestframework
+pandas
+imgkit
+requests
+pillow
+pymongo
