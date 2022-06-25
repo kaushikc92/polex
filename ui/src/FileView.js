@@ -16,7 +16,7 @@ class FileView extends React.Component {
   getFiles() {
     const request = axios({
       method: "GET",
-      url: `${process.env.PUBLIC_URL}/api/get-files/`
+      url: `${process.env.PUBLIC_URL}/api/files/list/`
     });
     request.then(
       response => {
@@ -34,7 +34,7 @@ class FileView extends React.Component {
     formData.append("fileName", this.state.selectedFile.name);
     const request = axios({
       method: "POST",
-      url: `${process.env.PUBLIC_URL}/api/upload-file/`,
+      url: `${process.env.PUBLIC_URL}/api/files/upload/`,
       data: formData,
       headers: {"content-type": "multipart/form-data"}
     });
