@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import JSONParser, FileUploadParser
 
-import string, random, os
+import string, random, os, shutil
 
 from filemgr.models import Document
 from mapmgr.views import convert_html
@@ -27,7 +27,7 @@ class UploadFile(APIView):
         )
         newDoc.docfile.name = "{0}.csv".format(uid)
         newDoc.save()
-        #convert_html(newDoc)
+        convert_html(newDoc)
 
         return Response(status=status.HTTP_200_OK)
 
@@ -50,4 +50,6 @@ class DeleteFile(APIView):
         uid = request.data["uid"]
         Document.objects.get(uid=uid).delete()
         os.remove("{0}/documents/{1}.csv".format(settings.MEDIA_ROOT, uid))
+        shutil.rmtree("{0}/tiles/{1}".format(settings.MEDIA_ROOT, uid))
+
         return Response(status=status.HTTP_200_OK) 

@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get update && apt-get install -y nginx vim python3 python3-pip wget
+RUN apt-get update && apt-get install -y nginx vim python3 python3-pip wget libxrender1 libxext6
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

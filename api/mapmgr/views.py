@@ -1,6 +1,9 @@
+from django.conf import settings
+
 import math, io, os, queue, threading
 
 import pandas as pd
+import numpy as np
 import imgkit
 from PIL import Image
 
