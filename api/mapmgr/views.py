@@ -1,34 +1,99 @@
-import math, io, os
+import math, io, os, queue, threading
 
 import pandas as pd
+import imgkit
 from PIL import Image
 
-from pymongo import MongoClient
+from mapmgr.models import TiledDocument
 
-def convert_html(uid):
-    df = pd.read_csv("{0}/files/{1}.csv".format(settings.MEDIA_ROOT, uid))
+write_q = queue.Queue()
+
+def convert_html(doc):
+    uid = doc.uid
+    df = pd.read_csv("{0}/documents/{1}.csv".format(settings.MEDIA_ROOT, uid))
+    doc.rows = df.shape[0]
+    doc.columns = df.shape[1]
+    doc.save()
+
     df = df.astype(str).apply(lambda x: x.str[:settings.MAX_CHARS_PER_COLUMN])
     rows_per_image, max_width = get_subtable_dimensions(df)
     os.mkdir("{0}/tiles/{1}".format(settings.MEDIA_ROOT, uid))
     df1 = df[0 : rows_per_image]
-    img1 = convert_subtable_html(df1, uid, 0, max_width)
+    img1 = convert_subtable_html(df1, 0, max_width)
     img2 = None
     if df.shape[0] > rows_per_image:
         df2 = df[rows_per_image : 2 * rows_per_image]
-        img2 = convert_subtable_html(df2, uid, 1, max_width)
+        img2 = convert_subtable_html(df2, 1, max_width)
     img, start_row = create_subtable_image(img1, img2, 0)
     pil_img = Image.fromarray(img)
     subtable_path = "{0}/tiles/{1}/tile_0.jpg".format(settings.MEDIA_ROOT, uid)
     pil_img.save(subtable_path, 'jpeg', quality=60)
-    
-    mongo_client = MongoClient("mongodb://localhost:27017/")
-    db = mongo_client["polex"]
-    tiles_collection = db["tiles"]
 
+    add_subtable_entries(doc, 0, [img])
 
+    if img2 is not None:
+        t = threading.Thread(target=convert_remaining_html, args=(doc, df, rows_per_image, max_width,
+            img2, start_row))
+        t.start()
 
+def convert_remaining_html(doc, csv, rows_per_image, max_width, img1, start_row):
+    number_of_subtables = math.ceil(df.shape[0] / rows_per_image)
+    batch_size = 10
+    no_of_batches = math.ceil(number_of_subtables / batch_size)
 
-def convert_subtable_html(df, uid, subtable_number, max_width, results=None):
+    num_write_threads = 10
+    write_threads = []
+
+    for i in range(num_write_threads):
+        w = threading.Thread(target=worker)
+        w.start()
+        write_threads.append(w)
+
+    for i in range(0, no_of_batches):
+        converted_images = [None] * batch_size
+        threads = []
+        for j in range(0, batch_size):
+            subtable_number = batch_size * i + j + 2
+            df = csv[subtable_number * rows_per_image: (subtable_number+1) * rows_per_image]
+            t = threading.Thread(target=convert_subtable_html, args=(df, j, max_width, converted_images))
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+
+        subtable_images = []
+        for j, img2 in enumerate(converted_images):
+            subtable_number = batch_size * i + j + 1
+            if start_row == -1:
+                if img2 is not None:
+                    subtable_images.append(img2)
+                break
+            img, start_row = create_subtable_image(img1, img2, start_row)
+            img1 = img2
+            subtable_images.append(img)
+            pil_img = Image.fromarray(img)
+            subtable_path = "{0}/tiles/{1}/tile_{2}.jpg".format(settings.MEDIA_ROOT, doc.uid, str(subtable_number))
+            write_q.put((pil_img, subtable_path))
+            add_subtable_entries(doc, batch_size*i, subtable_images)
+        write_q.join()
+
+        for i in range(num_write_threads):
+            write_q.put(None)
+        for w in write_threads:
+            w.join()
+
+def worker():
+    while True:
+        item = write_q.get()
+        if item is None:
+            break
+        write_subtable_image(item[0], item[1])
+        write_q.task_done()
+
+def write_subtable_image(pil_img, subtable_path):
+    pil_img.save(subtable_path, 'jpeg', quality=60)
+
+def convert_subtable_html(df, subtable_number, max_width, results=None):
     if df.shape[0] == 0:
         return None
     pd.set_option('display.max_colwidth', -1)
@@ -97,4 +162,12 @@ def pad_img(img, h, w):
     new_img[0:height, 0:width] = img
     return new_img
 
-
+def add_subtable_entries(doc, start_st_no, images):
+    entries = []
+    for i, img in enumerate(images):
+        tile_size = 2 ** 12
+        nrows = int(math.ceil(img.shape[0]/tile_size)) * (2 ** 4) 
+        ncols = int(math.ceil(img.shape[1]/tile_size)) * (2 ** 4)
+        entries.append(TiledDocument(document=doc, subtable_number=start_st_no+i,
+            tile_count_on_x=ncols, tile_count_on_y=nrows, total_tile_count=ncols*nrows))
+    TiledDocument.objects.bulk_create(entries)
