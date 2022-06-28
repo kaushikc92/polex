@@ -1,5 +1,6 @@
 import React from "react";
 import axios from "axios";
+import { FaTrash } from 'react-icons/fa';
 
 class FileView extends React.Component {
   constructor(props) {
@@ -13,6 +14,9 @@ class FileView extends React.Component {
     this.onUploadFileChange = this.onUploadFileChange.bind(this);
     this.deleteFile = this.deleteFile.bind(this);
   }
+  componentDidMount() {
+    this.getFiles();
+  }
   getFiles() {
     const request = axios({
       method: "GET",
@@ -21,7 +25,7 @@ class FileView extends React.Component {
     request.then(
       response => {
         this.setState({
-          items: response.data.files
+          items: response.data
         });
       }, err => {
       }
@@ -50,15 +54,58 @@ class FileView extends React.Component {
       selectedFile: e.target.files[0]
     });
   }
-  deleteFile() {
+  deleteFile(uid) {
+    const formData = new FormData();
+    formData.append("uid", uid);
+    const request = axios({
+      method: "POST",
+      url: `${process.env.PUBLIC_URL}/api/files/delete/`,
+      data: formData,
+    });
+    request.then(
+      response => {
+        this.getFiles();
+      }, err => {
+      }
+    );
   }
   render() {
+    let rows;
+    rows = this.state.items.map((item, i) => {
+      return (
+        <tr key={i}>
+          <td>
+            {item.name}
+          </td>
+          <td onClick={() => this.deleteFile(item.uid)} >
+            <FaTrash size={25} color="#9c9c9c" />
+          </td>
+        </tr>
+      );
+    });
+    let table;
+    table = (
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows}
+        </tbody>
+      </table>
+    );
     return (
       <div>
         <form onSubmit={this.onUploadFileSubmit}>
           <input type="file" onChange={this.onUploadFileChange} />
           <button type="submit">{"Upload"}</button>
         </form>
+        <div>
+          {table}
+        </div>
       </div>
     );
   }

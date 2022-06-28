@@ -7,7 +7,7 @@ from rest_framework.parsers import JSONParser, FileUploadParser
 
 from pymongo import MongoClient
 
-import string, random
+import string, random, os
 
 class UploadFile(APIView):
     parser_class = (FileUploadParser,)
@@ -33,4 +33,28 @@ class ListFiles(APIView):
     parser_class = (JSONParser,)
 
     def get(self, request):
-        return Response(status=status.HTTP_200_OK)
+        mongo_client = MongoClient("mongodb://localhost:27017/")
+        db = mongo_client["polex"]
+        files_collection = db["files"]
+        li_files = []
+        for f in files_collection.find():
+            li_files.append({
+                "uid": f["uid"],
+                "name": f["name"]
+            })
+        return Response(li_files, status=status.HTTP_200_OK)
+
+class DeleteFile(APIView):
+    parser_class = (JSONParser,)
+
+    def post(self, request):
+        uid = request.data["uid"]
+        print(uid)
+        mongo_client = MongoClient("mongodb://localhost:27017/")
+        db = mongo_client["polex"]
+        files_collection = db["files"]
+        files_collection.delete_one({"uid": uid})
+        path = settings.MEDIA_ROOT + "/files/" + uid + ".csv"
+        if os.path.exists(path):
+            os.remove(path)
+        return Response(status=status.HTTP_200_OK) 
