@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.db.models import F, Sum
+from django.http import HttpResponse
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -53,9 +55,8 @@ class GetTileView(APIView):
         subtable_number, y = get_subtable_number(uid, x, y)
         if subtable_number == -1:
             return empty_response()
-        #subtable_name = "{0}_{1}.jpg".format(uid, str(subtable_number))
         subtable_path = "{0}/tiles/{1}/tile_{2}.jpg".format(settings.MEDIA_ROOT, uid, str(subtable_number))
-        img = Image.open(path)
+        img = Image.open(subtable_path)
         img.load()
 
         tile_size = 2 ** (18 - z)
