@@ -1,5 +1,10 @@
 from django.conf import settings
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.parsers import JSONParser, FileUploadParser
+
 import math, io, os, queue, threading
 
 import pandas as pd
@@ -10,6 +15,62 @@ from PIL import Image
 from mapmgr.models import TiledDocument
 
 write_q = queue.Queue()
+
+def get_subtable_number(uid, x, y):
+    if x < 0 or y < 0:
+        return -1, None
+
+    if y > TiledDocument.objects.filter(document__uid=uid).aggregate(Sum('tile_count_on_y'))['tile_count_on_y__sum']:
+        return -1, None
+    tile_details = TiledDocument.objects.filter(document__uid=uid).order_by('subtable_number')
+
+    subtable_number = 0
+    agg_rows = 0
+    for i in range(0, len(tile_details)):
+        agg_rows = agg_rows + tile_details[i].tile_count_on_y
+        if y < agg_rows:
+            subtable_number = i
+            y = y + tile_details[i].tile_count_on_y - agg_rows
+            break
+        if i == len(tile_details) - 1:
+            return -1, None
+    tile_count_on_x = tile_details[subtable_number].tile_count_on_x
+    if x >= tile_count_on_x:
+        return -1, None
+
+    return subtable_number, y
+
+
+class GetTileView(APIView):
+    parser_class = (JSONParser,)
+
+    def get(self, request, uid, z, x, y):
+        print(uid)
+        z = int(z) - 3
+        x = int(x) * (2 ** (10 - z))
+        y = int(y) * (2 ** (10 - z))
+
+        subtable_number, y = get_subtable_number(uid, x, y)
+        if subtable_number == -1:
+            return empty_response()
+        #subtable_name = "{0}_{1}.jpg".format(uid, str(subtable_number))
+        subtable_path = "{0}/tiles/{1}/tile_{2}.jpg".format(settings.MEDIA_ROOT, uid, str(subtable_number))
+        img = Image.open(path)
+        img.load()
+
+        tile_size = 2 ** (18 - z)
+        tile_img = img.crop((x*256, y*256, x*256 + tile_size, y*256 + tile_size))
+        tile_img = tile_img.resize((256,256))
+
+        try:
+            response = HttpResponse(content_type="image/jpg")
+            tile_img.save(response, 'jpeg')
+            return response
+        except IOError:
+            return error_response()
+
+        return Response(status=status.HTTP_200_OK)
+
 
 def convert_html(doc):
     uid = doc.uid
@@ -39,7 +100,7 @@ def convert_html(doc):
             img2, start_row))
         t.start()
 
-def convert_remaining_html(doc, csv, rows_per_image, max_width, img1, start_row):
+def convert_remaining_html(doc, df, rows_per_image, max_width, img1, start_row):
     number_of_subtables = math.ceil(df.shape[0] / rows_per_image)
     batch_size = 10
     no_of_batches = math.ceil(number_of_subtables / batch_size)
@@ -57,8 +118,8 @@ def convert_remaining_html(doc, csv, rows_per_image, max_width, img1, start_row)
         threads = []
         for j in range(0, batch_size):
             subtable_number = batch_size * i + j + 2
-            df = csv[subtable_number * rows_per_image: (subtable_number+1) * rows_per_image]
-            t = threading.Thread(target=convert_subtable_html, args=(df, j, max_width, converted_images))
+            sdf = df[subtable_number * rows_per_image: (subtable_number+1) * rows_per_image]
+            t = threading.Thread(target=convert_subtable_html, args=(sdf, j, max_width, converted_images))
             threads.append(t)
             t.start()
         for t in threads:
@@ -174,3 +235,15 @@ def add_subtable_entries(doc, start_st_no, images):
         entries.append(TiledDocument(document=doc, subtable_number=start_st_no+i,
             tile_count_on_x=ncols, tile_count_on_y=nrows, total_tile_count=ncols*nrows))
     TiledDocument.objects.bulk_create(entries)
+
+def empty_response():
+    red = Image.new('RGBA', (1, 1), (255, 0, 0, 0))
+    response = HttpResponse(content_type="image/png")
+    red.save(response, "png")
+    return response
+
+def error_response():
+    red = Image.new('RGB', (256, 256), (255, 0, 0))
+    response = HttpResponse(content_type="image/jpg")
+    red.save(response, "jpeg")
+    return response

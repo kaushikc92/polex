@@ -1,5 +1,6 @@
 import React from "react";
 import axios from "axios";
+import { Link } from "react-router-dom";
 import { FaTrash } from 'react-icons/fa';
 
 class FileView extends React.Component {
@@ -75,7 +76,9 @@ class FileView extends React.Component {
       return (
         <tr key={i}>
           <td>
-            {item.name}
+            <Link to={"/map/" + item.uid}>
+              {item.name}
+            </Link>
           </td>
           <td onClick={() => this.deleteFile(item.uid)} >
             <FaTrash size={25} color="#9c9c9c" />
