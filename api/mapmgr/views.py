@@ -161,7 +161,7 @@ def write_subtable_image(pil_img, subtable_path):
 def convert_subtable_html(df, subtable_number, max_width, results=None):
     if df.shape[0] == 0:
         return None
-    pd.set_option('display.max_colwidth', -1)
+    pd.set_option('display.max_colwidth', None)
     html = df.to_html(index=False, border=1).replace('<td>', '<td style = "word-wrap: break-word;' + 
         ' text-align:center; font-family: Times New Roman; font-size: 18;">')
     html = html.replace('<th>', '<th style = "background-color: #9cd4e2; text-align: center;' + 
