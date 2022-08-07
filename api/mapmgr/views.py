@@ -47,7 +47,6 @@ class GetTileView(APIView):
     parser_class = (JSONParser,)
 
     def get(self, request, uid, z, x, y):
-        print(uid)
         z = int(z) - 3
         x = int(x) * (2 ** (10 - z))
         y = int(y) * (2 ** (10 - z))
@@ -56,18 +55,18 @@ class GetTileView(APIView):
         if subtable_number == -1:
             return empty_response()
         subtable_path = "{0}/tiles/{1}/tile_{2}.jpg".format(settings.MEDIA_ROOT, uid, str(subtable_number))
-        img = Image.open(subtable_path)
-        img.load()
-
-        tile_size = 2 ** (18 - z)
-        tile_img = img.crop((x*256, y*256, x*256 + tile_size, y*256 + tile_size))
-        tile_img = tile_img.resize((256,256))
 
         try:
+            img = Image.open(subtable_path)
+            img.load()
+
+            tile_size = 2 ** (18 - z)
+            tile_img = img.crop((x*256, y*256, x*256 + tile_size, y*256 + tile_size))
+            tile_img = tile_img.resize((256,256))
             response = HttpResponse(content_type="image/jpg")
             tile_img.save(response, 'jpeg')
             return response
-        except IOError:
+        except:
             return error_response()
 
         return Response(status=status.HTTP_200_OK)

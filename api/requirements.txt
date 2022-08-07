@@ -1,6 +1,7 @@
 django
 djangorestframework
 pandas
+pandasql
 imgkit
 requests
 pillow
